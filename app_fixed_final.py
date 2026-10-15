@@ -5,6 +5,7 @@ import google.generativeai as genai
 
 PDF_FILE_NAME = "math_reference_book.pdf"
 
+# Local ماحول کے لیے .env فائل لوڈ کریں
 load_dotenv()
 
 st.set_page_config(
@@ -14,9 +15,17 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# --- Configuration & Environment Setup ---
-api_key = os.getenv("GEMINI_API_KEY", "").strip().strip('"').strip("'")
-configured_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip().strip('"').strip("'")
+# --- Configuration & Environment Setup (Streamlit Secrets + .env Support) ---
+# یہ پہلے Streamlit Secrets چیک کرے گا، اگر وہاں نہ ملا تو .env سے لے گا
+api_key = (
+    st.secrets.get("GEMINI_API_KEY", "") 
+    or os.getenv("GEMINI_API_KEY", "")
+).strip().strip('"').strip("'")
+
+configured_model = (
+    st.secrets.get("GEMINI_MODEL", "") 
+    or os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+).strip().strip('"').strip("'")
 
 PDF_SYSTEM_INSTRUCTION = """
 You are MathBot AI (MathWiz AI), an expert mathematics tutor and document assistant.
@@ -99,13 +108,11 @@ MATH_SYMBOLS_FULL = {
 is_dark = st.session_state.app_theme == "Dark"
 bg_main = "#0d1117" if is_dark else "#ffffff"
 sidebar_bg = "#161b22" if is_dark else "#f8fafc"
-card_bg = "#1c2128" if is_dark else "#ffffff"
 text_primary = "#f0f6fc" if is_dark else "#1e293b"
 border_color = "rgba(56, 189, 248, 0.2)" if is_dark else "rgba(226, 232, 240, 1.0)"
 
 st.markdown(f"""
     <style>
-    /* Global Styles */
     .stApp {{
         background-color: {bg_main};
         color: {text_primary};
@@ -115,8 +122,6 @@ st.markdown(f"""
         background-color: {sidebar_bg};
         border-right: 1px solid {border_color};
     }}
-
-    /* Top Navigation Elements */
     .top-brand {{
         display: flex;
         align-items: center;
@@ -128,8 +133,6 @@ st.markdown(f"""
         -webkit-text-fill-color: transparent;
         margin-bottom: 20px;
     }}
-    
-    /* Hero Banner Card */
     .mathwiz-hero {{
         position: relative;
         overflow: hidden;
@@ -153,8 +156,6 @@ st.markdown(f"""
         margin-bottom: 0px;
         max-width: 600px;
     }}
-
-    /* Panel and Action styling */
     div.stButton > button {{
         border-radius: 8px !important;
         font-weight: 500 !important;
@@ -223,7 +224,7 @@ with col_profile:
         with c_p2:
             st.metric(label="Active Books", value="1" if st.session_state.pdf_bytes else "0")
 
-# --- Settings Dropdown with Functional Google Login & Sign Up ---
+# --- Settings Dropdown ---
 with col_settings:
     with st.popover("⚙️ Settings", use_container_width=True):
         st.markdown("##### 🚦 Math Assistant Preferences")
@@ -234,17 +235,14 @@ with col_settings:
         st.divider()
         st.markdown("##### 🛡️ Session Management")
 
-        # Clear Cache Button
         if st.button("🧹 Clear Local Cache", use_container_width=True, key="btn_clear_cache"):
             st.session_state.math_user_input_box = ""
             st.info("Local cache cleared.")
 
-        # Authentication Status & Functional Buttons
         if not st.session_state.user_logged_in:
             st.markdown("---")
             st.markdown("##### 🔐 Account Access")
             
-            # Google Direct Authentication Button
             if st.button("🌐 Continue with Google", use_container_width=True, type="secondary", key="btn_google_auth"):
                 st.session_state.user_logged_in = True
                 st.session_state.user_email = "rehmanismail758@gmail.com"
@@ -254,7 +252,6 @@ with col_settings:
 
             auth_tab_login, auth_tab_signup = st.tabs(["🔑 Log In", "📝 Sign Up"])
 
-            # Login Form
             with auth_tab_login:
                 login_email = st.text_input("Email", key="set_login_email")
                 login_password = st.text_input("Password", type="password", key="set_login_password")
@@ -271,7 +268,6 @@ with col_settings:
                     else:
                         st.error("Account not found. Please sign up.")
 
-            # Sign Up Form
             with auth_tab_signup:
                 new_name = st.text_input("Full Name", key="set_signup_name")
                 new_email = st.text_input("Email Address", key="set_signup_email")
@@ -304,7 +300,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Quick Starter Cards & Examples Grid
 col_quick, col_examples = st.columns([1.2, 1])
 
 with col_quick:
@@ -350,12 +345,10 @@ st.write("")
 if not st.session_state.pdf_bytes:
     st.warning("⚠️ Koi PDF active nahi hai. Barah-e-karam project folder mein PDF rakhein ya upload karein.")
 
-# --- Previous Chat History ---
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- Full Math Typing Symbols Palette & Search Bar ---
 symbol_tool_col, input_field_col = st.columns([1.2, 8.8])
 
 with symbol_tool_col:
@@ -390,14 +383,13 @@ with input_field_col:
     with f_col3:
         st.button("🗑️ Clear", use_container_width=True, on_click=on_clear_click)
 
-# --- Backend Query Execution ---
 user_query = st.session_state.get("current_query", "").strip()
 
 if user_query:
-    st.session_state.current_query = ""  # Reset processed query
+    st.session_state.current_query = ""
 
     if not api_key:
-        st.error("⚠️ Gemini API Key detect nahi hui. Barah-e-karam `.env` file mein `GEMINI_API_KEY` define karein.")
+        st.error("⚠️ Gemini API Key detect nahi hui. Barah-e-karam `.env` file mein ya Streamlit Secrets mein `GEMINI_API_KEY` define karein.")
     elif not st.session_state.pdf_bytes:
         st.error("⚠️ Sawal poochne ke liye PDF ka hona zaroori hai.")
     else:
@@ -428,7 +420,8 @@ if user_query:
 
                 for chunk in response:
                     if chunk.text:
-                        full_response += chunk.text
+                        full_point = chunk.text
+                        full_response += full_point
                         placeholder.markdown(full_response + "▌")
 
                 placeholder.markdown(full_response)
